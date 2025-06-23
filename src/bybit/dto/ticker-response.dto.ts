@@ -1,0 +1,36 @@
+export interface TickerDto {
+  symbol: string;
+  lastPrice: string;
+  indexPrice: string;
+  markPrice: string;
+
+  prevPrice24h: string;
+  price24hPcnt: string;
+  prevPrice1h: string;
+
+  highPrice24h: string;
+  lowPrice24h: string;
+
+  volume24h: string;
+  turnover24h: string;
+
+  openInterest: string;
+  openInterestValue: string;
+
+  fundingRate: string;
+  nextFundingTime: string;
+
+  bid1Price: string;
+  bid1Size: string;
+  ask1Price: string;
+  ask1Size: string;
+
+  predictedDeliveryPrice: string;
+  basisRate: string;
+  deliveryFeeRate: string;
+  deliveryTime: string;
+  basis: string;
+  preOpenPrice: string;
+  preQty: string;
+  curPreListingPhase: string;
+}
