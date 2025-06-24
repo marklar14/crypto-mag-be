@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConfigModule } from '@nestjs/config';
 import { BybitController } from './bybit/bybit.controller';
 import { BybitService } from './bybit/bybit.service';
 import { AuthModule } from './auth/auth.module';
 import { JwtService } from './auth/jwt/jwt.service';
 
 @Module({
-  imports: [AuthModule],
-  controllers: [AppController, BybitController],
-  providers: [AppService, BybitService, JwtService],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule],
+  controllers: [BybitController],
+  providers: [BybitService, JwtService],
 })
 export class AppModule {}
