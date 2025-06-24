@@ -3,3 +3,7 @@ GET http://localhost:3000/api/bybit/tickers
 
 ### Get candles
 GET http://localhost:3000/api/bybit/candles?symbol=BTCUSDT&interval=1
+
+### Authenticate with x-api-key (replace with your key)
+POST http://localhost:3000/auth/token
+x-api-key: your-client-api-key
