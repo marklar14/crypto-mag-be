@@ -3,6 +3,8 @@ import * as crypto from 'crypto';
 import axios from 'axios';
 import { CandleDto } from './dto/candle-response.dto';
 import { TickerDto } from './dto/ticker-response.dto';
+import { TickerResponse } from './response/ticker-response';
+import { mapTickerDtoToResponse } from './mapper/map-ticker-dto-to-response';
 
 @Injectable()
 export class BybitService {
@@ -19,11 +21,16 @@ export class BybitService {
     return crypto.createHmac('sha256', this.API_SECRET).update(payload).digest('hex');
   }
 
-  async getTickers(): Promise<TickerDto[]> {
+  async getTickers(symbols?: string[]): Promise<TickerResponse[]> {
     const res = await axios.get(`${this.BASE_URL}/v5/market/tickers`, {
       params: { category: 'linear' },
     });
-    return res.data;
+
+    const list: TickerDto[] = res.data?.result?.list ?? [];
+
+    const mapped = list.map(mapTickerDtoToResponse);
+
+    return symbols?.length ? mapped.filter((t) => symbols.includes(t.symbol)) : mapped;
   }
 
   async getCandles(symbol: string, interval: string = '1', limit = 100): Promise<CandleDto> {
@@ -35,6 +42,6 @@ export class BybitService {
         limit,
       },
     });
-    return res.data;
+    return res.data?.result?.list ?? [];
   }
 }

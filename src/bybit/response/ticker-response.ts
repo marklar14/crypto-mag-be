@@ -1,0 +1,29 @@
+export class TickerResponse {
+  symbol: string;
+  lastPrice: number;
+  indexPrice: number;
+  markPrice: number;
+  prevPrice24h: number;
+  price24hPcnt: number;
+  prevPrice1h: number;
+  highPrice24h: number;
+  lowPrice24h: number;
+  volume24h: number;
+  turnover24h: number;
+  openInterest: number;
+  openInterestValue: number;
+  fundingRate: number;
+  nextFundingTime: string;
+  bid1Price: number;
+  bid1Size: number;
+  ask1Price: number;
+  ask1Size: number;
+  predictedDeliveryPrice: number;
+  basisRate: number;
+  deliveryFeeRate: number;
+  deliveryTime: string;
+  basis: number;
+  preOpenPrice: number;
+  preQty: number;
+  curPreListingPhase: string;
+}

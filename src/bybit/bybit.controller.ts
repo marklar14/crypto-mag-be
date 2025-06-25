@@ -4,14 +4,16 @@ import { TickerDto } from './dto/ticker-response.dto';
 import { GetCandlesQuery } from './dto/get-candles-query';
 import { CandleDto } from './dto/candle-response.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { TickerResponse } from './response/ticker-response';
+import { GetTickersQuery } from './dto/get-tickers-query';
 
 @Controller('api/bybit')
 export class BybitController {
   constructor(private readonly bybitService: BybitService) {}
   @UseGuards(AuthGuard('jwt'))
   @Get('tickers')
-  getTickers(): Promise<TickerDto[]> {
-    return this.bybitService.getTickers();
+  getTickers(@Query() query: GetTickersQuery): Promise<TickerResponse[]> {
+    return this.bybitService.getTickers(query?.symbols);
   }
   @UseGuards(AuthGuard('jwt'))
   @Get('candles')
