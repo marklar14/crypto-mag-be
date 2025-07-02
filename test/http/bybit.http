@@ -7,3 +7,35 @@ GET http://localhost:3000/api/bybit/candles?symbol=BTCUSDT&interval=1
 ### Authenticate with x-api-key (replace with your key)
 POST http://localhost:3000/auth/token
 x-api-key: your-client-api-key
+
+### Get screener results (multi-timeframe analysis) - filtered (default)
+GET http://localhost:3000/screener
+Authorization: Bearer {{auth_token}}
+
+### Get screener results (multi-timeframe analysis) - all symbols
+GET http://localhost:3000/screener?filterValid=false
+Authorization: Bearer {{auth_token}}
+
+### Get market cap data for specific symbols (optimized with caching)
+GET http://localhost:3000/api/market-cap?symbols=BTC,ETH,ADA
+Authorization: Bearer {{auth_token}}
+
+### Get top market caps (default 100)
+GET http://localhost:3000/api/market-cap/top
+Authorization: Bearer {{auth_token}}
+
+### Get top market caps with custom limit
+GET http://localhost:3000/api/market-cap/top?limit=50
+Authorization: Bearer {{auth_token}}
+
+### Get all market cap data (top 100)
+GET http://localhost:3000/api/market-cap
+Authorization: Bearer {{auth_token}}
+
+### Get cache statistics
+GET http://localhost:3000/api/market-cap/cache/stats
+Authorization: Bearer {{auth_token}}
+
+### Force refresh market cap cache
+POST http://localhost:3000/api/market-cap/cache/refresh
+Authorization: Bearer {{auth_token}}
