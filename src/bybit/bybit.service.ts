@@ -1,47 +1,111 @@
 import { Injectable } from '@nestjs/common';
-import * as crypto from 'crypto';
-import axios from 'axios';
+import { RestClientV5, KlineIntervalV3 } from 'bybit-api';
 import { CandleDto } from './dto/candle-response.dto';
-import { TickerDto } from './dto/ticker-response.dto';
 import { TickerResponse } from './response/ticker-response';
-import { mapTickerDtoToResponse } from './mapper/map-ticker-dto-to-response';
 
 @Injectable()
 export class BybitService {
-  private readonly API_KEY = process.env.BYBIT_API_KEY!;
-  private readonly API_SECRET = process.env.BYBIT_API_SECRET!;
-  private readonly BASE_URL = 'https://api.bybit.com';
+  private readonly client: RestClientV5;
 
-  private sign(params: Record<string, string>, timestamp: string): string {
-    const paramStr = Object.entries(params)
-      .sort()
-      .map(([key, val]) => `${key}=${val}`)
-      .join('&');
-    const payload = `${timestamp}${this.API_KEY}${paramStr}${this.API_SECRET}`;
-    return crypto.createHmac('sha256', this.API_SECRET).update(payload).digest('hex');
+  constructor() {
+    this.client = new RestClientV5({
+      key: process.env.BYBIT_API_KEY,
+      secret: process.env.BYBIT_API_SECRET,
+      testnet: false, // produkční data
+    });
   }
 
   async getTickers(symbols?: string[]): Promise<TickerResponse[]> {
-    const res = await axios.get(`${this.BASE_URL}/v5/market/tickers`, {
-      params: { category: 'linear' },
+    const response = await this.client.getTickers({
+      category: 'linear',
     });
 
-    const list: TickerDto[] = res.data?.result?.list ?? [];
+    if (response.retCode !== 0 || !response.result.list) {
+      throw new Error('Failed to fetch tickers');
+    }
 
-    const mapped = list.map(mapTickerDtoToResponse);
+    const mapped = response.result.list.map((ticker: any) => ({
+      symbol: ticker.symbol,
+      lastPrice: parseFloat(ticker.lastPrice),
+      indexPrice: parseFloat(ticker.indexPrice),
+      markPrice: parseFloat(ticker.markPrice),
+      prevPrice24h: parseFloat(ticker.prevPrice24h),
+      price24hPcnt: parseFloat(ticker.price24hPcnt),
+      prevPrice1h: parseFloat(ticker.prevPrice1h),
+      highPrice24h: parseFloat(ticker.highPrice24h),
+      lowPrice24h: parseFloat(ticker.lowPrice24h),
+      volume24h: parseFloat(ticker.volume24h),
+      turnover24h: parseFloat(ticker.turnover24h),
+      openInterest: parseFloat(ticker.openInterest),
+      openInterestValue: parseFloat(ticker.openInterestValue),
+      fundingRate: parseFloat(ticker.fundingRate),
+      nextFundingTime: ticker.nextFundingTime,
+      bid1Price: parseFloat(ticker.bid1Price),
+      bid1Size: parseFloat(ticker.bid1Size),
+      ask1Price: parseFloat(ticker.ask1Price),
+      ask1Size: parseFloat(ticker.ask1Size),
+      predictedDeliveryPrice: parseFloat(ticker.predictedDeliveryPrice),
+      basisRate: parseFloat(ticker.basisRate),
+      deliveryFeeRate: parseFloat(ticker.deliveryFeeRate),
+      deliveryTime: ticker.deliveryTime,
+      basis: parseFloat(ticker.basis),
+      preOpenPrice: parseFloat(ticker.preOpenPrice),
+      preQty: parseFloat(ticker.preQty),
+      curPreListingPhase: ticker.curPreListingPhase,
+    }));
 
     return symbols?.length ? mapped.filter((t) => symbols.includes(t.symbol)) : mapped;
   }
 
-  async getCandles(symbol: string, interval: string = '1', limit = 100): Promise<CandleDto> {
-    const res = await axios.get(`${this.BASE_URL}/v5/market/kline`, {
-      params: {
+  async getCandles(symbol: string, interval: KlineIntervalV3, limit = 100): Promise<CandleDto[]> {
+    const response = await this.client.getKline({
+      category: 'linear',
+      symbol,
+      interval,
+      limit,
+    });
+
+    if (!response.result?.list) {
+      throw new Error('Failed to fetch candles');
+    }
+
+    return response.result.list.map((row: any[]) => ({
+      openTime: row[0],
+      open: row[1],
+      high: row[2],
+      low: row[3],
+      close: row[4],
+      volume: row[5],
+      turnover: row[6],
+    }));
+  }
+
+  // Method to get real-time price for a specific symbol
+  async getRealTimePrice(
+    symbol: string,
+  ): Promise<{ symbol: string; price: string; timestamp: string } | null> {
+    try {
+      const response = await this.client.getTickers({
         category: 'linear',
         symbol,
-        interval,
-        limit,
-      },
-    });
-    return res.data?.result?.list ?? [];
+      });
+
+      if (response.retCode === 0 && response.result?.list && response.result?.list.length > 0) {
+        const ticker = response.result.list[0];
+        console.log(`Real-time price for ${symbol}:`, {
+          lastPrice: ticker.lastPrice,
+          timestamp: new Date().toISOString(),
+        });
+        return {
+          symbol: ticker.symbol,
+          price: ticker.lastPrice,
+          timestamp: new Date().toISOString(),
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error(`Error getting real-time price for ${symbol}:`, error);
+      return null;
+    }
   }
 }

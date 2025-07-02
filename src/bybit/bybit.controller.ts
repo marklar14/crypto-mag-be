@@ -6,6 +6,7 @@ import { CandleDto } from './dto/candle-response.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { TickerResponse } from './response/ticker-response';
 import { GetTickersQuery } from './dto/get-tickers-query';
+import { KlineIntervalV3 } from 'bybit-api';
 
 @Controller('api/bybit')
 export class BybitController {
@@ -17,7 +18,7 @@ export class BybitController {
   }
   @UseGuards(AuthGuard('jwt'))
   @Get('candles')
-  getCandles(@Query() query: GetCandlesQuery): Promise<CandleDto> {
-    return this.bybitService.getCandles(query.symbol, query.interval);
+  getCandles(@Query() query: GetCandlesQuery): Promise<CandleDto[]> {
+    return this.bybitService.getCandles(query.symbol, query.interval as KlineIntervalV3);
   }
 }
