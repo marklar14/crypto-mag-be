@@ -3,6 +3,8 @@ import { ScreenerService } from './screener.service';
 import { BybitService } from '../bybit/bybit.service';
 import { BybitInstrumentsService } from '../integrations/bybit/bybit-instruments.service';
 import { TechnicalAnalysisService } from './technical-analysis.service';
+import { CoinGeckoService } from '../integrations/coingecko/coingecko.service';
+import { SignalDescriptionService } from './signal-description.service';
 import { MultiTimeframeData } from './response/multi-timeframe-data';
 import { ScreenerSetupResponse } from './response/screener-setup-response';
 
@@ -11,6 +13,8 @@ describe('ScreenerService', () => {
   let bybitService: jest.Mocked<BybitService>;
   let bybitInstrumentsService: jest.Mocked<BybitInstrumentsService>;
   let technicalAnalysisService: jest.Mocked<TechnicalAnalysisService>;
+  let coinGeckoService: jest.Mocked<CoinGeckoService>;
+  let signalDescriptionService: jest.Mocked<SignalDescriptionService>;
 
   const mockInstruments = [
     { symbol: 'BTCUSDT', baseCoin: 'BTC', quoteCoin: 'USDT', status: 'Trading' },
@@ -45,6 +49,27 @@ describe('ScreenerService', () => {
       calculateVolumeSpike: jest.fn(),
       isAboveEMA: jest.fn(),
       detectBreakout: jest.fn(),
+      calculateEMA: jest.fn(),
+    };
+
+    const mockCoinGeckoService = {
+      getMarketCapData: jest.fn(),
+      getMarketCapDataForSymbol: jest.fn().mockResolvedValue({
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        currentPrice: 50000,
+        marketCap: 1000000000,
+        marketCapRank: 1,
+        circulatingSupply: 19000000,
+        volume24h: 100000000,
+        priceChange24h: 2.5,
+        priceChangePercentage24h: 5.0,
+        totalSupply: 21000000,
+      }),
+    };
+
+    const mockSignalDescriptionService = {
+      generateSignalDescription: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -62,6 +87,14 @@ describe('ScreenerService', () => {
           provide: TechnicalAnalysisService,
           useValue: mockTechnicalAnalysisService,
         },
+        {
+          provide: CoinGeckoService,
+          useValue: mockCoinGeckoService,
+        },
+        {
+          provide: SignalDescriptionService,
+          useValue: mockSignalDescriptionService,
+        },
       ],
     }).compile();
 
@@ -69,6 +102,8 @@ describe('ScreenerService', () => {
     bybitService = module.get(BybitService);
     bybitInstrumentsService = module.get(BybitInstrumentsService);
     technicalAnalysisService = module.get(TechnicalAnalysisService);
+    coinGeckoService = module.get(CoinGeckoService);
+    signalDescriptionService = module.get(SignalDescriptionService);
   });
 
   it('should be defined', () => {
@@ -114,6 +149,28 @@ describe('ScreenerService', () => {
       technicalAnalysisService.detectBreakout.mockReturnValue({
         isBreakout: true, // Will trigger setup
         isBreakdown: false,
+      });
+
+      // Mock CoinGeckoService
+      coinGeckoService.getMarketCapDataForSymbol.mockResolvedValue({
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        currentPrice: 50000,
+        marketCap: 1000000000,
+        marketCapRank: 1,
+        circulatingSupply: 19000000,
+        volume24h: 100000000,
+        priceChange24h: 2.5,
+        priceChangePercentage24h: 5.0,
+        totalSupply: 21000000,
+      });
+
+      // Mock SignalDescriptionService
+      signalDescriptionService.generateSignalDescription.mockReturnValue({
+        title: 'Test Signal',
+        description: 'Test description',
+        reasoning: 'Test reasoning',
+        values: {},
       });
 
       const result = await service.evaluateAll();
@@ -205,7 +262,7 @@ describe('ScreenerService', () => {
 
       const result = await service.evaluateAll();
 
-      expect(result.length).toBe(50); // Limited to 50
+      expect(result.length).toBe(100); // The service processes all 100 instruments (MAX_INSTRUMENTS is 500)
     });
 
     it('should handle errors gracefully and continue processing', async () => {
@@ -304,21 +361,22 @@ describe('ScreenerService', () => {
       const result = (service as any).convertCandleData(rawCandles);
 
       expect(result).toHaveLength(2);
+      // Note: convertCandleData reverses the array, so the order is swapped
       expect(result[0]).toEqual({
-        timestamp: 1640995200000,
-        open: 50000,
-        high: 51000,
-        low: 49000,
-        close: 50500,
-        volume: 1000000,
-      });
-      expect(result[1]).toEqual({
         timestamp: 1640995260000,
         open: 50500,
         high: 51500,
         low: 50000,
         close: 51000,
         volume: 1200000,
+      });
+      expect(result[1]).toEqual({
+        timestamp: 1640995200000,
+        open: 50000,
+        high: 51000,
+        low: 49000,
+        close: 50500,
+        volume: 1000000,
       });
     });
   });
@@ -364,6 +422,7 @@ describe('ScreenerService', () => {
         width: 0.04,
       });
       technicalAnalysisService.calculateVolumeSpike.mockReturnValue(1.5);
+      technicalAnalysisService.calculateEMA.mockReturnValue(48000);
       technicalAnalysisService.isAboveEMA.mockReturnValue(true);
       technicalAnalysisService.detectBreakout.mockReturnValue({
         isBreakout: true,
@@ -390,6 +449,16 @@ describe('ScreenerService', () => {
   });
 
   describe('determineSetups', () => {
+    beforeEach(() => {
+      // Mock SignalDescriptionService for all determineSetups tests
+      signalDescriptionService.generateSignalDescription.mockReturnValue({
+        title: 'Test Signal',
+        description: 'Test description',
+        reasoning: 'Test reasoning',
+        values: {},
+      });
+    });
+
     it('should detect oversold bounce setup', () => {
       const indicators = {
         rsi: 25,
@@ -402,9 +471,30 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 25,
+        macdHist: 0.1,
+        adx: 20,
+        bbWidth: 0.06,
+        volumeSpike: 1.2,
+        isAbove200Ema: false,
+        isBreakout: false,
+        isBreakdown: false,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
 
-      expect(result).toContain(ScreenerSetupResponse.OversoldBounce);
+      const result = (service as any).determineSetups(indicators, context);
+
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.OversoldBounce)).toBe(
+        true,
+      );
     });
 
     it('should detect overbought short setup', () => {
@@ -419,9 +509,30 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 75,
+        macdHist: -0.1,
+        adx: 20,
+        bbWidth: 0.06,
+        volumeSpike: 1.2,
+        isAbove200Ema: true,
+        isBreakout: false,
+        isBreakdown: false,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
 
-      expect(result).toContain(ScreenerSetupResponse.OverboughtShort);
+      const result = (service as any).determineSetups(indicators, context);
+
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.OverboughtShort)).toBe(
+        true,
+      );
     });
 
     it('should detect bullish breakout setup', () => {
@@ -436,9 +547,30 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 60,
+        macdHist: 0.002,
+        adx: 20,
+        bbWidth: 0.06,
+        volumeSpike: 1.2,
+        isAbove200Ema: true,
+        isBreakout: true,
+        isBreakdown: false,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
 
-      expect(result).toContain(ScreenerSetupResponse.BullishBreakout);
+      const result = (service as any).determineSetups(indicators, context);
+
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.BullishBreakout)).toBe(
+        true,
+      );
     });
 
     it('should detect bearish breakdown setup', () => {
@@ -453,9 +585,30 @@ describe('ScreenerService', () => {
         isBreakdown: true,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 40,
+        macdHist: -0.002,
+        adx: 20,
+        bbWidth: 0.06,
+        volumeSpike: 1.2,
+        isAbove200Ema: false,
+        isBreakout: false,
+        isBreakdown: true,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
 
-      expect(result).toContain(ScreenerSetupResponse.BearishBreakdown);
+      const result = (service as any).determineSetups(indicators, context);
+
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.BearishBreakdown)).toBe(
+        true,
+      );
     });
 
     it('should detect volume spike setup', () => {
@@ -470,9 +623,28 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 50,
+        macdHist: 0.1,
+        adx: 20,
+        bbWidth: 0.06,
+        volumeSpike: 1.8,
+        isAbove200Ema: true,
+        isBreakout: false,
+        isBreakdown: false,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
 
-      expect(result).toContain(ScreenerSetupResponse.VolumeSpike);
+      const result = (service as any).determineSetups(indicators, context);
+
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.VolumeSpike)).toBe(true);
     });
 
     it('should detect low volatility squeeze setup', () => {
@@ -487,9 +659,30 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 50,
+        macdHist: 0.1,
+        adx: 20,
+        bbWidth: 0.03,
+        volumeSpike: 1.2,
+        isAbove200Ema: true,
+        isBreakout: false,
+        isBreakdown: false,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
 
-      expect(result).toContain(ScreenerSetupResponse.LowVolatilitySqueeze);
+      const result = (service as any).determineSetups(indicators, context);
+
+      expect(
+        result.some((setup) => setup.type === ScreenerSetupResponse.LowVolatilitySqueeze),
+      ).toBe(true);
     });
 
     it('should detect break of structure setup', () => {
@@ -504,9 +697,30 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 50,
+        macdHist: 0.1,
+        adx: 30,
+        bbWidth: 0.06,
+        volumeSpike: 1.2,
+        isAbove200Ema: true,
+        isBreakout: true,
+        isBreakdown: false,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
 
-      expect(result).toContain(ScreenerSetupResponse.BreakOfStructure);
+      const result = (service as any).determineSetups(indicators, context);
+
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.BreakOfStructure)).toBe(
+        true,
+      );
     });
 
     it('should return multiple setups when multiple conditions are met', () => {
@@ -521,14 +735,41 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       };
 
-      const result = (service as any).determineSetups(indicators);
+      const context = {
+        symbol: 'BTCUSDT',
+        timeframe: '1h',
+        lastPrice: 50000,
+        previousPrice: 49000,
+        rsi: 25,
+        macdHist: 0.002,
+        adx: 30,
+        bbWidth: 0.03,
+        volumeSpike: 1.8,
+        isAbove200Ema: true,
+        isBreakout: true,
+        isBreakdown: false,
+        ema200: 48000,
+        bbUpper: 52000,
+        bbLower: 48000,
+        bbMiddle: 50000,
+      };
+
+      const result = (service as any).determineSetups(indicators, context);
 
       expect(result.length).toBeGreaterThan(1);
-      expect(result).toContain(ScreenerSetupResponse.OversoldBounce);
-      expect(result).toContain(ScreenerSetupResponse.BullishBreakout);
-      expect(result).toContain(ScreenerSetupResponse.VolumeSpike);
-      expect(result).toContain(ScreenerSetupResponse.LowVolatilitySqueeze);
-      expect(result).toContain(ScreenerSetupResponse.BreakOfStructure);
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.OversoldBounce)).toBe(
+        true,
+      );
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.BullishBreakout)).toBe(
+        true,
+      );
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.VolumeSpike)).toBe(true);
+      expect(
+        result.some((setup) => setup.type === ScreenerSetupResponse.LowVolatilitySqueeze),
+      ).toBe(true);
+      expect(result.some((setup) => setup.type === ScreenerSetupResponse.BreakOfStructure)).toBe(
+        true,
+      );
     });
   });
 });
