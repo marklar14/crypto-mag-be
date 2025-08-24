@@ -8,6 +8,12 @@ export class BybitService {
   private readonly client: RestClientV5;
 
   constructor() {
+    // Check if API credentials are configured
+    if (!process.env.BYBIT_API_KEY || !process.env.BYBIT_API_SECRET) {
+      console.warn('Bybit API credentials not configured. Some features may not work properly.');
+      console.warn('Please set BYBIT_API_KEY and BYBIT_API_SECRET environment variables.');
+    }
+
     this.client = new RestClientV5({
       key: process.env.BYBIT_API_KEY,
       secret: process.env.BYBIT_API_SECRET,
@@ -58,26 +64,50 @@ export class BybitService {
   }
 
   async getCandles(symbol: string, interval: KlineIntervalV3, limit = 100): Promise<CandleDto[]> {
-    const response = await this.client.getKline({
-      category: 'linear',
-      symbol,
-      interval,
-      limit,
-    });
+    try {
+      // Check if API credentials are configured
+      if (!process.env.BYBIT_API_KEY || !process.env.BYBIT_API_SECRET) {
+        throw new Error(
+          'Bybit API credentials not configured. Please set BYBIT_API_KEY and BYBIT_API_SECRET environment variables.',
+        );
+      }
 
-    if (!response.result?.list) {
-      throw new Error('Failed to fetch candles');
+      const response = await this.client.getKline({
+        category: 'linear',
+        symbol,
+        interval,
+        limit,
+      });
+
+      if (response.retCode !== 0) {
+        throw new Error(
+          `Bybit API error: ${response.retMsg || 'Unknown error'} (code: ${response.retCode})`,
+        );
+      }
+
+      if (!response.result?.list) {
+        throw new Error(`No candle data received for ${symbol} with interval ${interval}`);
+      }
+
+      return response.result.list.map((row: any[]) => ({
+        openTime: row[0],
+        open: row[1],
+        high: row[2],
+        low: row[3],
+        close: row[4],
+        volume: row[5],
+        turnover: row[6],
+      }));
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(
+          `Failed to fetch candles for ${symbol} (interval: ${interval}): ${error.message}`,
+        );
+      }
+      throw new Error(
+        `Failed to fetch candles for ${symbol} (interval: ${interval}): Unknown error`,
+      );
     }
-
-    return response.result.list.map((row: any[]) => ({
-      openTime: row[0],
-      open: row[1],
-      high: row[2],
-      low: row[3],
-      close: row[4],
-      volume: row[5],
-      turnover: row[6],
-    }));
   }
 
   // Method to get real-time price for a specific symbol

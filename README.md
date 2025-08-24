@@ -31,6 +31,38 @@
 $ npm install
 ```
 
+## Environment Configuration
+
+This application requires the following environment variables to be set:
+
+### Required Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```bash
+# Bybit API Configuration
+# Get your API credentials from: https://www.bybit.com/app/user/api-management
+BYBIT_API_KEY=your_bybit_api_key_here
+BYBIT_API_SECRET=your_bybit_api_secret_here
+
+# JWT Configuration
+JWT_SECRET=your_jwt_secret_here
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+```
+
+### Getting Bybit API Credentials
+
+1. Go to [Bybit API Management](https://www.bybit.com/app/user/api-management)
+2. Create a new API key with the following permissions:
+   - Read permissions for market data
+   - No trading permissions required for this application
+3. Copy the API key and secret to your `.env` file
+
+**Note**: Without proper API credentials, the real-time signals and market data features will not work.
+
 ## Compile and run the project
 
 ```bash

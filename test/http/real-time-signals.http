@@ -1,0 +1,19 @@
+### Real-time Signals API Tests
+
+### Get real-time signals with default parameters
+GET http://localhost:3000/api/real-time-signals
+
+### Get real-time signals with custom parameters
+GET http://localhost:3000/api/real-time-signals?timeframes=tf1m,tf5m&threshold=75&limit=10&adaptiveThresholds=true&tickAnalysis=true
+
+### Get real-time signals with specific timeframes only
+GET http://localhost:3000/api/real-time-signals?timeframes=tf1m,tf5m&threshold=60&limit=5
+
+### Get real-time signals with high threshold (only strong signals)
+GET http://localhost:3000/api/real-time-signals?threshold=85&limit=20&adaptiveThresholds=true
+
+### Get real-time signals without tick analysis
+GET http://localhost:3000/api/real-time-signals?tickAnalysis=false&threshold=70&limit=15
+
+### Get real-time signals with static thresholds
+GET http://localhost:3000/api/real-time-signals?adaptiveThresholds=false&threshold=65&limit=25 
