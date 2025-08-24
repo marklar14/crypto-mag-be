@@ -6,9 +6,16 @@ import { AuthModule } from './auth/auth.module';
 import { JwtService } from './auth/jwt/jwt.service';
 import { ScreenerModule } from './screener/screener.module';
 import { CoinGeckoModule } from './integrations/coingecko/coingecko.module';
+import { RealTimeSignalsModule } from './real-time-signals/real-time-signals.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, ScreenerModule, CoinGeckoModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    AuthModule,
+    ScreenerModule,
+    CoinGeckoModule,
+    RealTimeSignalsModule,
+  ],
   controllers: [BybitController],
   providers: [BybitService, JwtService],
 })

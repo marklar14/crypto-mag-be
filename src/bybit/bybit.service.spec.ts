@@ -15,12 +15,22 @@ describe('BybitService', () => {
   let mockRestClient: jest.Mocked<RestClientV5>;
 
   beforeEach(async () => {
+    // Mock environment variables for testing
+    process.env.BYBIT_API_KEY = 'test-api-key';
+    process.env.BYBIT_API_SECRET = 'test-api-secret';
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [BybitService],
     }).compile();
 
     service = module.get<BybitService>(BybitService);
     mockRestClient = (service as any).client;
+  });
+
+  afterEach(() => {
+    // Clean up environment variables after each test
+    delete process.env.BYBIT_API_KEY;
+    delete process.env.BYBIT_API_SECRET;
   });
 
   it('should be defined', () => {
