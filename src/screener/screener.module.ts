@@ -5,7 +5,6 @@ import { TechnicalAnalysisService } from './technical-analysis.service';
 import { SignalDescriptionService } from './signal-description.service';
 import { BybitService } from '../bybit/bybit.service';
 import { BybitInstrumentsService } from '../integrations/bybit/bybit-instruments.service';
-import { CoinGeckoService } from '../integrations/coingecko/coingecko.service';
 
 @Module({
   controllers: [ScreenerController],
@@ -15,7 +14,6 @@ import { CoinGeckoService } from '../integrations/coingecko/coingecko.service';
     SignalDescriptionService,
     BybitService,
     BybitInstrumentsService,
-    CoinGeckoService,
   ],
 })
 export class ScreenerModule {}
