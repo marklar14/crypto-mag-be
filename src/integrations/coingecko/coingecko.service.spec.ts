@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { CoinGeckoService } from './coingecko.service';
 import axios from 'axios';
 
@@ -9,8 +10,21 @@ describe('CoinGeckoService', () => {
   let service: CoinGeckoService;
 
   beforeEach(async () => {
+    const mockConfigService = {
+      get: jest.fn((key: string) => {
+        if (key === 'COINGECKO_API_KEY') return 'test-api-key';
+        return undefined;
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CoinGeckoService],
+      providers: [
+        CoinGeckoService,
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
     }).compile();
 
     service = module.get<CoinGeckoService>(CoinGeckoService);
@@ -92,7 +106,9 @@ describe('CoinGeckoService', () => {
       ]);
 
       expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining('/coins/markets'), {
-        headers: {},
+        headers: {
+          'x-cg-demo-api-key': 'test-api-key',
+        },
         params: {
           vs_currency: 'usd',
           order: 'market_cap_desc',
@@ -165,7 +181,9 @@ describe('CoinGeckoService', () => {
       await service.getMarketCapData(['BTC']);
       expect(mockedAxios.get).toHaveBeenCalledTimes(1);
       expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining('/coins/markets'), {
-        headers: {},
+        headers: {
+          'x-cg-demo-api-key': 'test-api-key',
+        },
         params: {
           vs_currency: 'usd',
           order: 'market_cap_desc',

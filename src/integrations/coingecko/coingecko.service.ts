@@ -1,12 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { CoinGeckoTicker } from './dto/coingecko-ticker.dto';
 import { MarketCapData } from '../coinmarketcap/coinmarketcap.service';
 
 @Injectable()
 export class CoinGeckoService {
+  private readonly logger = new Logger(CoinGeckoService.name);
   private readonly BASE_URL = 'https://api.coingecko.com/api/v3';
-  private readonly API_KEY = process.env.COINGECKO_API_KEY;
+  private readonly API_KEY: string | undefined;
+
+  constructor(private readonly configService: ConfigService) {
+    this.API_KEY = this.configService.get<string>('COINGECKO_API_KEY');
+  }
   private marketCapCache: { [symbol: string]: MarketCapData } = {};
   private lastCacheUpdate = 0;
   private readonly CACHE_DURATION = 60 * 60 * 1000;
@@ -50,7 +56,7 @@ export class CoinGeckoService {
 
   private async refreshMarketCapCache(): Promise<void> {
     try {
-      console.log('Refreshing market cap cache from CoinGecko...');
+      this.logger.log('Refreshing market cap cache from CoinGecko...');
 
       // Fetch all coins market data in one API call
       const response = await axios.get(`${this.BASE_URL}/coins/markets`, {
@@ -89,11 +95,13 @@ export class CoinGeckoService {
       });
 
       this.lastCacheUpdate = Date.now();
-      console.log(
+      this.logger.log(
         `Market cap cache refreshed with ${Object.keys(this.marketCapCache).length} coins`,
       );
     } catch (error) {
-      console.error('Error refreshing market cap cache from CoinGecko:', error);
+      this.logger.error(
+        `Error refreshing market cap cache from CoinGecko: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       // If API fails, use fallback data
       this.populateFallbackCache();
     }
@@ -170,7 +178,7 @@ export class CoinGeckoService {
 
     this.marketCapCache = fallbackData;
     this.lastCacheUpdate = Date.now();
-    console.log('Using fallback market cap data');
+    this.logger.warn('Using fallback market cap data');
   }
 
   // Method to manually refresh cache if needed

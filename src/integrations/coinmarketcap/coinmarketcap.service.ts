@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
 export interface CoinMarketCapTicker {
@@ -55,13 +56,18 @@ export interface MarketCapData {
 
 @Injectable()
 export class CoinMarketCapService {
-  private readonly API_KEY = process.env.COINMARKETCAP_API_KEY;
+  private readonly logger = new Logger(CoinMarketCapService.name);
+  private readonly API_KEY: string | undefined;
   private readonly BASE_URL = 'https://pro-api.coinmarketcap.com/v1';
+
+  constructor(private readonly configService: ConfigService) {
+    this.API_KEY = this.configService.get<string>('COINMARKETCAP_API_KEY');
+  }
 
   async getMarketCapData(symbols: string[]): Promise<MarketCapData[]> {
     try {
       if (!this.API_KEY) {
-        console.warn('CoinMarketCap API key not found. Using fallback data.');
+        this.logger.warn('CoinMarketCap API key not found. Using fallback data.');
         return this.getFallbackMarketCapData(symbols);
       }
 
@@ -100,7 +106,9 @@ export class CoinMarketCapService {
 
       return results;
     } catch (error) {
-      console.error('Error fetching market cap data from CoinMarketCap:', error);
+      this.logger.error(
+        `Error fetching market cap data from CoinMarketCap: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       return this.getFallbackMarketCapData(symbols);
     }
   }
@@ -113,7 +121,7 @@ export class CoinMarketCapService {
   async getTopMarketCaps(limit: number = 100): Promise<MarketCapData[]> {
     try {
       if (!this.API_KEY) {
-        console.warn('CoinMarketCap API key not found. Using fallback data.');
+        this.logger.warn('CoinMarketCap API key not found. Using fallback data.');
         return this.getFallbackTopMarketCaps(limit);
       }
 
@@ -146,7 +154,9 @@ export class CoinMarketCapService {
         };
       });
     } catch (error) {
-      console.error('Error fetching top market caps from CoinMarketCap:', error);
+      this.logger.error(
+        `Error fetching top market caps from CoinMarketCap: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       return this.getFallbackTopMarketCaps(limit);
     }
   }

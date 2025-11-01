@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { BybitService } from './bybit.service';
 import { RestClientV5 } from 'bybit-api';
 
-// Mock the bybit-api RestClientV5
 jest.mock('bybit-api', () => ({
   RestClientV5: jest.fn().mockImplementation(() => ({
     getTickers: jest.fn(),
@@ -15,22 +15,26 @@ describe('BybitService', () => {
   let mockRestClient: jest.Mocked<RestClientV5>;
 
   beforeEach(async () => {
-    // Mock environment variables for testing
-    process.env.BYBIT_API_KEY = 'test-api-key';
-    process.env.BYBIT_API_SECRET = 'test-api-secret';
+    const mockConfigService = {
+      get: jest.fn((key: string) => {
+        if (key === 'BYBIT_API_KEY') return 'test-api-key';
+        if (key === 'BYBIT_API_SECRET') return 'test-api-secret';
+        return undefined;
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [BybitService],
+      providers: [
+        BybitService,
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
     }).compile();
 
     service = module.get<BybitService>(BybitService);
     mockRestClient = (service as any).client;
-  });
-
-  afterEach(() => {
-    // Clean up environment variables after each test
-    delete process.env.BYBIT_API_KEY;
-    delete process.env.BYBIT_API_SECRET;
   });
 
   it('should be defined', () => {

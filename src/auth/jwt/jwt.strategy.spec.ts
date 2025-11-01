@@ -1,18 +1,30 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { JwtService } from './jwt.service';
+import { ConfigService } from '@nestjs/config';
+import { JwtStrategy } from './jwt.strategy';
 
-describe('JwtService', () => {
-  let service: JwtService;
+describe('JwtStrategy', () => {
+  let strategy: JwtStrategy;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [JwtService],
+      providers: [
+        JwtStrategy,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'JWT_SECRET') return 'test-secret';
+              return undefined;
+            }),
+          },
+        },
+      ],
     }).compile();
 
-    service = module.get<JwtService>(JwtService);
+    strategy = module.get<JwtStrategy>(JwtStrategy);
   });
 
   it('should be defined', () => {
-    expect(service).toBeDefined();
+    expect(strategy).toBeDefined();
   });
 });

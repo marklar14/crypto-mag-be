@@ -1,12 +1,18 @@
 import { Controller, Post, UnauthorizedException, Headers } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
+
   @Post('token')
   getAccessToken(@Headers('x-api-key') apiKey: string) {
-    if (apiKey !== process.env.FRONTEND_API_KEY) {
+    const frontendApiKey = this.configService.get<string>('FRONTEND_API_KEY');
+    if (apiKey !== frontendApiKey) {
       throw new UnauthorizedException('Invalid API key');
     }
 
