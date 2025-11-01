@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BybitService } from '../bybit/bybit.service';
 import { DynamicThresholds } from './response/real-time-signal-response';
 import { Timeframe } from './enums/timeframe.enum';
@@ -6,7 +6,8 @@ import { TimeframeMapper } from './utils/timeframe-mapper';
 
 @Injectable()
 export class DynamicThresholdsService {
-  private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minut
+  private readonly logger = new Logger(DynamicThresholdsService.name);
+  private readonly CACHE_DURATION = 10 * 60 * 1000;
   private thresholdsCache: Map<string, { data: DynamicThresholds; timestamp: number }> = new Map();
 
   constructor(private readonly bybitService: BybitService) {}
@@ -23,15 +24,37 @@ export class DynamicThresholdsService {
     }
 
     try {
-      // Načteme historická data pro výpočet thresholdů
       const bybitInterval = TimeframeMapper.toBybitInterval(timeframe);
       const candles = await this.bybitService.getCandles(symbol, bybitInterval, 1000);
 
       if (candles.length < 100) {
-        throw new Error(`Insufficient historical data for ${symbol}`);
+        this.logger.debug(
+          `Insufficient historical data for ${symbol} (${candles.length} candles), using default thresholds`,
+        );
+        const defaultThresholds = {
+          priceChange: {
+            moderate: 0.5,
+            significant: 1.0,
+            strong: 2.0,
+            explosive: 5.0,
+          },
+          volumeSpike: {
+            moderate: 1.5,
+            high: 2.5,
+            extreme: 5.0,
+          },
+          percentiles: {
+            priceChange: [],
+            volumeSpike: [],
+          },
+        };
+        this.thresholdsCache.set(cacheKey, {
+          data: defaultThresholds,
+          timestamp: Date.now(),
+        });
+        return defaultThresholds;
       }
 
-      // Vypočítáme cenové změny a volume spike'y
       const priceChanges: number[] = [];
       const volumeSpikes: number[] = [];
       const volumes: number[] = [];
@@ -47,7 +70,6 @@ export class DynamicThresholdsService {
         volumes.push(volume);
       }
 
-      // Vypočítáme průměrný volume pro detekci spike'ů
       const avgVolume = volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length;
 
       for (let i = 0; i < candles.length; i++) {
@@ -56,11 +78,9 @@ export class DynamicThresholdsService {
         volumeSpikes.push(volumeSpike);
       }
 
-      // Seřadíme data pro výpočet percentilů
       priceChanges.sort((a, b) => a - b);
       volumeSpikes.sort((a, b) => a - b);
 
-      // Vypočítáme thresholdy na základě percentilů
       const thresholds: DynamicThresholds = {
         priceChange: {
           moderate: this.getPercentile(priceChanges, 70),
@@ -79,22 +99,22 @@ export class DynamicThresholdsService {
         },
       };
 
-      // Uložíme do cache
       this.thresholdsCache.set(cacheKey, {
         data: thresholds,
         timestamp: Date.now(),
       });
 
-      console.log(`Calculated dynamic thresholds for ${symbol}:`, {
+      this.logger.debug(`Calculated dynamic thresholds for ${symbol}`, {
         priceChange: thresholds.priceChange,
         volumeSpike: thresholds.volumeSpike,
       });
 
       return thresholds;
     } catch (error) {
-      console.error(`Error calculating dynamic thresholds for ${symbol}:`, error);
+      this.logger.warn(
+        `Error calculating dynamic thresholds for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}. Using default thresholds.`,
+      );
 
-      // Fallback na defaultní thresholdy
       return {
         priceChange: {
           moderate: 0.5,
@@ -118,10 +138,8 @@ export class DynamicThresholdsService {
   calculateThresholdPercentile(value: number, percentiles: number[]): number {
     if (percentiles.length === 0) return 0;
 
-    // Seřadíme percentily pro správný výpočet
     const sortedPercentiles = [...percentiles].sort((a, b) => a - b);
 
-    // Najdeme pozici hodnoty v seřazeném poli
     let position = 0;
     for (let i = 0; i < sortedPercentiles.length; i++) {
       if (value <= sortedPercentiles[i]) {
@@ -130,12 +148,10 @@ export class DynamicThresholdsService {
       }
     }
 
-    // Pokud je hodnota větší než všechny percentily, vrátíme 100
     if (value > sortedPercentiles[sortedPercentiles.length - 1]) {
       return 100;
     }
 
-    // Vrátíme percentil (0-100)
     return (position / sortedPercentiles.length) * 100;
   }
 

@@ -1,12 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { BybitService } from './bybit.service';
-import { TickerDto } from './dto/ticker-response.dto';
-import { GetCandlesQuery } from './dto/get-candles-query';
-import { CandleDto } from './dto/candle-response.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { TickerResponse } from './response/ticker-response';
-import { GetTickersQuery } from './dto/get-tickers-query';
 import { KlineIntervalV3 } from 'bybit-api';
+import { BybitService } from './bybit.service';
+import { GetCandlesQuery } from './dto/get-candles-query';
+import { GetTickersQuery } from './dto/get-tickers-query';
+import { CandleDto } from './dto/candle-response.dto';
+import { TickerResponse } from './response/ticker-response';
 
 @Controller('api/bybit')
 export class BybitController {

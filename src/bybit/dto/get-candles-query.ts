@@ -1,11 +1,10 @@
-import {IsNotEmpty, IsString} from "class-validator";
-
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class GetCandlesQuery {
-    @IsString()
-    @IsNotEmpty()
-    symbol: string;
+  @IsString()
+  @IsNotEmpty()
+  symbol: string;
 
-    @IsString()
-    interval: string;
+  @IsString()
+  interval: string;
 }

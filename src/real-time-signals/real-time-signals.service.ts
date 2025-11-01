@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BybitService } from '../bybit/bybit.service';
 import { BybitInstrumentsService } from '../integrations/bybit/bybit-instruments.service';
 import { DynamicThresholdsService } from './dynamic-thresholds.service';
@@ -15,6 +15,7 @@ import {
 
 @Injectable()
 export class RealTimeSignalsService {
+  private readonly logger = new Logger(RealTimeSignalsService.name);
   private readonly MAX_INSTRUMENTS = 200;
   private readonly CONCURRENT_LIMIT = 10;
 
@@ -40,22 +41,18 @@ export class RealTimeSignalsService {
   ): Promise<RealTimeSignalResponse> {
     const startTime = Date.now();
 
-    console.log(`Analyzing ${this.MAX_INSTRUMENTS} instruments for real-time signals`);
+    this.logger.log(`Analyzing ${this.MAX_INSTRUMENTS} instruments for real-time signals`);
 
-    // Step 1: Get available instruments
     const instruments = await this.bybitInstrumentsService.getInstruments();
     const limitedInstruments = instruments.slice(0, this.MAX_INSTRUMENTS);
 
-    // Step 2: Get ticker data for all instruments
     const tickers = await this.bybitService.getTickers(
       limitedInstruments.map((instrument) => instrument.symbol),
     );
 
-    // Step 3: Process instruments in batches
     const signals: RealTimeSignal[] = [];
     const thresholds: { [key: string]: DynamicThresholds } = {};
 
-    // Process instruments in batches to avoid overwhelming the API
     for (let i = 0; i < limitedInstruments.length; i += this.CONCURRENT_LIMIT) {
       const batch = limitedInstruments.slice(i, i + this.CONCURRENT_LIMIT);
       const batchPromises = batch.map(async (instrument) => {
@@ -73,11 +70,9 @@ export class RealTimeSignalsService {
       signals.push(...batchResults.filter((signal) => signal !== null));
     }
 
-    // Step 4: Sort by confidence and limit results
     signals.sort((a, b) => b.confidence - a.confidence);
     const limitedSignals = signals.slice(0, limit);
 
-    // Step 5: Calculate dynamic thresholds for each timeframe
     if (adaptiveThresholds) {
       for (const timeframe of timeframes) {
         try {
@@ -87,15 +82,17 @@ export class RealTimeSignalsService {
           );
           thresholds[timeframe] = dynamicThresholds;
         } catch (error) {
-          console.error(`Error calculating thresholds for ${timeframe}:`, error);
+          this.logger.warn(
+            `Error calculating thresholds for ${timeframe}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          );
         }
       }
     }
 
     const scanTime = Date.now() - startTime;
 
-    console.log(`Real-time signals scan completed in ${scanTime}ms`);
-    console.log(`Found ${limitedSignals.length} signals above threshold ${threshold}`);
+    this.logger.log(`Real-time signals scan completed in ${scanTime}ms`);
+    this.logger.log(`Found ${limitedSignals.length} signals above threshold ${threshold}`);
 
     return {
       signals: limitedSignals,
@@ -139,12 +136,13 @@ export class RealTimeSignalsService {
         }
       }
 
-      // Return the signal with highest confidence
       return signals.length > 0
         ? signals.reduce((a, b) => (a.confidence > b.confidence ? a : b))
         : null;
     } catch (error) {
-      console.error(`Error processing instrument ${symbol}:`, error);
+      this.logger.warn(
+        `Error processing instrument ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       return null;
     }
   }
@@ -157,45 +155,37 @@ export class RealTimeSignalsService {
     tickAnalysisEnabled: boolean,
   ): Promise<RealTimeSignal | null> {
     try {
-      // Get candle data for the timeframe
       const bybitInterval = TimeframeMapper.toBybitInterval(timeframe);
       const candles = await this.bybitService.getCandles(symbol, bybitInterval, 100);
 
       if (candles.length < 10) {
-        return null; // Insufficient data
+        return null;
       }
 
-      // Calculate price change
       const currentPrice = parseFloat(ticker.lastPrice);
       const prevPrice = parseFloat(candles[candles.length - 2].close);
       const priceChange = ((currentPrice - prevPrice) / prevPrice) * 100;
 
-      // Calculate volume change
       const currentVolume = parseFloat(ticker.volume24h);
       const avgVolume =
         candles.reduce((sum, candle) => sum + parseFloat(candle.volume), 0) / candles.length;
       const volumeChange = ((currentVolume - avgVolume) / avgVolume) * 100;
 
-      // Calculate additional metrics
       const metrics = this.calculateMetrics(candles, currentPrice, currentVolume);
-
-      // Determine signal type
       const signalType = this.determineSignalType(priceChange, volumeChange, metrics);
-
-      // Calculate confidence score
       let confidence = this.calculateConfidence(priceChange, volumeChange, metrics, timeframe);
 
-      // Tick analýza pro tf1m
       let tickAnalysis: TickAnalysis | null = null;
       if (timeframe === Timeframe.TF1M && tickAnalysisEnabled) {
         try {
           tickAnalysis = await this.tickAnalysisService.analyzeTickData(symbol);
         } catch (error) {
-          console.error(`Error analyzing tick data for ${symbol}:`, error);
+          this.logger.debug(
+            `Error analyzing tick data for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          );
         }
       }
 
-      // Apply adaptive thresholds if enabled
       if (adaptiveThresholds) {
         try {
           const dynamicThresholds = await this.dynamicThresholdsService.calculateDynamicThresholds(
@@ -209,7 +199,9 @@ export class RealTimeSignalsService {
             dynamicThresholds,
           );
         } catch (error) {
-          console.error(`Error applying dynamic thresholds for ${symbol}:`, error);
+          this.logger.debug(
+            `Error applying dynamic thresholds for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          );
         }
       }
 
@@ -225,11 +217,12 @@ export class RealTimeSignalsService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error(`Error analyzing timeframe ${timeframe} for ${symbol}:`, error);
-      // Log additional context for debugging
+      this.logger.debug(
+        `Error analyzing timeframe ${timeframe} for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       if (error instanceof Error && error.message.includes('Failed to fetch candles')) {
-        console.error(
-          `Candle fetch failed for ${symbol} with timeframe ${timeframe}. This might be due to:`,
+        this.logger.debug(
+          `Candle fetch failed for ${symbol} with timeframe ${timeframe}. This might be due to insufficient historical data.`,
           {
             symbol,
             timeframe,
@@ -253,14 +246,12 @@ export class RealTimeSignalsService {
     });
     const momentum = priceChanges.reduce((sum, change) => sum + change, 0) / priceChanges.length;
 
-    // Calculate volatility
     const prices = candles.map((candle) => parseFloat(candle.close));
     const mean = prices.reduce((sum, price) => sum + price, 0) / prices.length;
     const variance =
       prices.reduce((sum, price) => sum + Math.pow(price - mean, 2), 0) / prices.length;
     const volatility = (Math.sqrt(variance) / mean) * 100;
 
-    // Calculate volume spike
     const volumes = candles.map((candle) => parseFloat(candle.volume));
     const avgVolume = volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length;
     const volumeSpike = currentVolume / avgVolume;
@@ -276,7 +267,6 @@ export class RealTimeSignalsService {
   private determineSignalType(priceChange: number, volumeChange: number, metrics: any): SignalType {
     const { momentum, volumeSpike } = metrics;
 
-    // Strong pump signal
     if (priceChange > 2 && volumeChange > 50 && momentum > 1) {
       return 'pump';
     }

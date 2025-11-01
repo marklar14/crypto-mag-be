@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UnauthorizedException } from '@nestjs/common';
@@ -16,7 +17,12 @@ describe('AuthController', () => {
   };
 
   beforeEach(async () => {
-    process.env.FRONTEND_API_KEY = 'test-api-key';
+    const mockConfigService = {
+      get: jest.fn((key: string) => {
+        if (key === 'FRONTEND_API_KEY') return 'test-api-key';
+        return undefined;
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -24,6 +30,10 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
