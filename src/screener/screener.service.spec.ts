@@ -3,7 +3,6 @@ import { ScreenerService } from './screener.service';
 import { BybitService } from '../bybit/bybit.service';
 import { BybitInstrumentsService } from '../integrations/bybit/bybit-instruments.service';
 import { TechnicalAnalysisService } from './technical-analysis.service';
-import { CoinGeckoService } from '../integrations/coingecko/coingecko.service';
 import { SignalDescriptionService } from './signal-description.service';
 import { MultiTimeframeData } from './response/multi-timeframe-data';
 import { ScreenerSetupResponse } from './response/screener-setup-response';
@@ -13,7 +12,6 @@ describe('ScreenerService', () => {
   let bybitService: jest.Mocked<BybitService>;
   let bybitInstrumentsService: jest.Mocked<BybitInstrumentsService>;
   let technicalAnalysisService: jest.Mocked<TechnicalAnalysisService>;
-  let coinGeckoService: jest.Mocked<CoinGeckoService>;
   let signalDescriptionService: jest.Mocked<SignalDescriptionService>;
 
   const mockInstruments = [
@@ -52,22 +50,6 @@ describe('ScreenerService', () => {
       calculateEMA: jest.fn(),
     };
 
-    const mockCoinGeckoService = {
-      getMarketCapData: jest.fn(),
-      getMarketCapDataForSymbol: jest.fn().mockResolvedValue({
-        symbol: 'BTC',
-        name: 'Bitcoin',
-        currentPrice: 50000,
-        marketCap: 1000000000,
-        marketCapRank: 1,
-        circulatingSupply: 19000000,
-        volume24h: 100000000,
-        priceChange24h: 2.5,
-        priceChangePercentage24h: 5.0,
-        totalSupply: 21000000,
-      }),
-    };
-
     const mockSignalDescriptionService = {
       generateSignalDescription: jest.fn(),
     };
@@ -88,10 +70,6 @@ describe('ScreenerService', () => {
           useValue: mockTechnicalAnalysisService,
         },
         {
-          provide: CoinGeckoService,
-          useValue: mockCoinGeckoService,
-        },
-        {
           provide: SignalDescriptionService,
           useValue: mockSignalDescriptionService,
         },
@@ -102,7 +80,6 @@ describe('ScreenerService', () => {
     bybitService = module.get(BybitService);
     bybitInstrumentsService = module.get(BybitInstrumentsService);
     technicalAnalysisService = module.get(TechnicalAnalysisService);
-    coinGeckoService = module.get(CoinGeckoService);
     signalDescriptionService = module.get(SignalDescriptionService);
   });
 
@@ -149,20 +126,6 @@ describe('ScreenerService', () => {
       technicalAnalysisService.detectBreakout.mockReturnValue({
         isBreakout: true, // Will trigger setup
         isBreakdown: false,
-      });
-
-      // Mock CoinGeckoService
-      coinGeckoService.getMarketCapDataForSymbol.mockResolvedValue({
-        symbol: 'BTC',
-        name: 'Bitcoin',
-        currentPrice: 50000,
-        marketCap: 1000000000,
-        marketCapRank: 1,
-        circulatingSupply: 19000000,
-        volume24h: 100000000,
-        priceChange24h: 2.5,
-        priceChangePercentage24h: 5.0,
-        totalSupply: 21000000,
       });
 
       // Mock SignalDescriptionService
@@ -392,7 +355,7 @@ describe('ScreenerService', () => {
         volume: 1000000 + i * 1000,
       }));
 
-      const result = (service as any).calculateScreenerResult(candles, 'BTCUSDT');
+      const result = (service as any).calculateScreenerResult(candles, 'BTCUSDT', null);
 
       expect(result).toEqual({ symbol: 'BTCUSDT' });
     });
@@ -429,7 +392,7 @@ describe('ScreenerService', () => {
         isBreakdown: false,
       });
 
-      const result = (service as any).calculateScreenerResult(candles, 'BTCUSDT');
+      const result = (service as any).calculateScreenerResult(candles, 'BTCUSDT', null);
 
       expect(result).toHaveProperty('symbol', 'BTCUSDT');
       expect(result).toHaveProperty('lastPrice');

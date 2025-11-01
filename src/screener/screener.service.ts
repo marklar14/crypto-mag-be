@@ -5,7 +5,6 @@ import {
   BybitInstrument,
 } from '../integrations/bybit/bybit-instruments.service';
 import { TechnicalAnalysisService, CandleData } from './technical-analysis.service';
-import { CoinGeckoService } from '../integrations/coingecko/coingecko.service';
 import { SignalDescriptionService, SignalContext } from './signal-description.service';
 import { MultiTimeframeData } from './response/multi-timeframe-data';
 import { PaginatedScreenerResponse } from './response/paginated-screener-response';
@@ -23,7 +22,6 @@ export class ScreenerService {
     private readonly bybitService: BybitService,
     private readonly bybitInstrumentsService: BybitInstrumentsService,
     private readonly technicalAnalysis: TechnicalAnalysisService,
-    private readonly coinGeckoService: CoinGeckoService,
     private readonly signalDescriptionService: SignalDescriptionService,
   ) {}
 
@@ -239,9 +237,6 @@ export class ScreenerService {
         tf.volumeSpike !== null &&
         tf.volumeSpike !== undefined &&
         tf.volumeSpike > 0 && // Volume spike should be greater than 0
-        tf.marketCap !== null &&
-        tf.marketCap !== undefined &&
-        tf.marketCap > 0 && // Market cap should be available and greater than 0
         tf.matchedSetups !== undefined &&
         tf.matchedSetups.length > 0; // Only include if there are trading setups detected
 
@@ -287,15 +282,8 @@ export class ScreenerService {
       const candleData1h = this.convertCandleData(candles1h);
       const candleData1d = this.convertCandleData(candles1d);
 
-      // Step 5: Fetch market cap data
-      const baseSymbol = symbol.replace('USDT', ''); // Remove USDT suffix for CoinGecko
-      const marketCapData = await this.coinGeckoService.getMarketCapDataForSymbol(baseSymbol);
-
-      // Step 6: Check if we have market cap data - if not, skip this symbol
-      if (!marketCapData || !marketCapData.marketCap || marketCapData.marketCap <= 0) {
-        console.log(`Skipping ${symbol} - no market cap data available`);
-        return null;
-      }
+      // Step 5: Market cap data check removed (CoinGecko integration removed)
+      const marketCapData = null;
 
       // Step 7: Calculate technical indicators for each timeframe
       const tf5m = this.calculateScreenerResult(candleData5m, symbol, marketCapData);
