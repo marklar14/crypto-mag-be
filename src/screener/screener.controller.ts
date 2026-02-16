@@ -1,14 +1,62 @@
 import { Controller, Get, Query, Post } from '@nestjs/common';
-import { MultiTimeframeData } from './response/multi-timeframe-data';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { PaginatedScreenerResponse } from './response/paginated-screener-response';
 import { ScreenerService } from './screener.service';
 import { BybitService } from '../bybit/bybit.service';
 
 export class GetScreenerQuery {
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return true;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return Boolean(value);
+  })
   filterValid?: boolean = true;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Type(() => Number)
   page?: number = 1;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(200)
+  @Type(() => Number)
   limit?: number = 50;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return Boolean(value);
+  })
   debug?: boolean = false;
+
+  @IsOptional()
+  @IsString()
+  timeframe?: string;
+}
+
+export class GetScreenerUnfilteredQuery {
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Type(() => Number)
+  page?: number = 1;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(200)
+  @Type(() => Number)
+  limit?: number = 50;
 }
 
 @Controller('screener')
@@ -34,7 +82,7 @@ export class ScreenerController {
 
   @Get('unfiltered')
   async getScreenerUnfiltered(
-    @Query() query: { page?: number; limit?: number },
+    @Query() query: GetScreenerUnfilteredQuery,
   ): Promise<PaginatedScreenerResponse> {
     const { page = 1, limit = 50 } = query;
 
